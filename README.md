@@ -26,8 +26,6 @@
 
 ## 效果展示
 
-> 将截图放到 `docs/images/` 目录下，或替换为你的图片链接。
-
 ![效果 1](https://blog.k1271.cn/static/img/6cfa44dbdd791ce6ffd06a9893dd5137.QQ20261002-093503.webp)
 ![效果 2](https://blog.k1271.cn/static/img/64e48d2c41dae5ad867edb9d9c57471e.QQ20261002-093537.webp)
 ![效果 3](https://blog.k1271.cn/static/img/cb80d40f0f135c45a701f04745da62b0.QQ20261002-093555.webp)
