@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="gbk">
+<title>图像取模工具</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: #1b1f27; color: #d8dee9;
+    font: 13px/1.6 "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
+  }
+  h1 { margin: 0 0 4px; font-size: 18px; color: #8fbcbb; }
+  .tip { color: #7d8799; font-size: 12px; margin-bottom: 14px; }
+  .tip a { color: #88c0d0; }
+  code { color: #ebcb8b; }
+  .wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .panel {
+    background: #232833; border: 1px solid #313846; border-radius: 8px;
+    padding: 14px; flex: 0 0 310px;
+  }
+  .panel.wide { flex: 1 1 430px; min-width: 350px; }
+  .panel h2 { margin: 0 0 10px; font-size: 14px; color: #88c0d0; font-weight: 600; }
+  label { display: block; margin: 10px 0 4px; color: #a6b0bf; font-size: 12px; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; background: #1b1f27; color: #e5e9f0; border: 1px solid #3b4252;
+    border-radius: 5px; padding: 6px 8px; font-size: 13px; font-family: inherit;
+  }
+  input[type=range] { width: 100%; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; min-width: 0; }
+  .chk { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #a6b0bf; font-size: 12px; }
+  .chk input { width: auto; }
+  .chk label { margin: 0; }
+  button {
+    background: #3b5b8c; color: #fff; border: 0; border-radius: 5px;
+    padding: 7px 12px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #4a6fa5; }
+  button.ghost { background: #3b4252; }
+  button.ghost:hover { background: #4c566a; }
+  .btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .drop {
+    border: 2px dashed #4c566a; border-radius: 8px; padding: 18px 10px; text-align: center;
+    color: #7d8799; font-size: 12px; cursor: pointer; margin-bottom: 6px;
+  }
+  .drop.on { border-color: #88c0d0; color: #88c0d0; background: #22303a; }
+  .previews { display: flex; gap: 14px; flex-wrap: wrap; }
+  .pv { text-align: center; }
+  .pv .cap { font-size: 11px; color: #a6b0bf; margin-bottom: 4px; }
+  canvas { image-rendering: pixelated; display: block; border: 1px solid #4c566a;
+           border-radius: 3px; background: #10131a; max-width: 100%; }
+  pre {
+    background: #10131a; border: 1px solid #313846; border-radius: 6px;
+    padding: 10px; margin: 0; overflow: auto; max-height: 400px;
+    font: 12px/1.55 "Consolas", "DejaVu Sans Mono", monospace; color: #a3be8c;
+    white-space: pre; tab-size: 8;
+  }
+  .info { color: #ebcb8b; font-size: 12px; margin: 8px 0; min-height: 18px; }
+  .hint { color: #7d8799; font-size: 11px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>图像取模工具</h1>
+<div class="tip">
+  把图片（或截图、Logo、单字图片）转成 TFT 用的 C 数组：彩色位图 RGB565、单色位图，
+  或直接输出成 <code>{{'字'}, {0x..}},</code> 字模格式。　同目录还有 <a href="font-maker.html">汉字字模生成器</a>。
+</div>
+
+<div class="wrap">
+
+  <div class="panel">
+    <h2>图片来源</h2>
+    <div class="drop" id="drop">点击选择图片 / 拖进来 / Ctrl+V 粘贴</div>
+    <input type="file" id="file" accept="image/*" style="display:none">
+
+    <div class="row">
+      <div>
+        <label>输出宽</label>
+        <input type="number" id="w" value="100" min="1" max="512">
+      </div>
+      <div>
+        <label>输出高</label>
+        <input type="number" id="h" value="100" min="1" max="512">
+      </div>
+    </div>
+    <div class="chk"><input type="checkbox" id="keep" checked><label for="keep">保持宽高比（居中留白）</label></div>
+
+    <label>缩放算法</label>
+    <select id="algo">
+      <option value="nearest">最近邻（像素风首选）</option>
+      <option value="bilinear" selected>双线性</option>
+      <option value="high">高质量</option>
+    </select>
+
+    <label>输出模式</label>
+    <select id="mode">
+      <option value="rgb565">彩色位图（RGB565）</option>
+      <option value="mono">单色位图（1 位）</option>
+      <option value="font">字模格式  {{'字'}, {0x..}},</option>
+    </select>
+
+    <div id="fontOpts" style="display:none">
+      <label>字模对应的字符（粘贴进 Font.h 用）</label>
+      <input type="text" id="charkey" value="你" maxlength="4">
+    </div>
+
+    <div id="monoOpts">
+      <label>二值化阈值：<span id="thVal">128</span></label>
+      <input type="range" id="th" min="1" max="254" value="128">
+      <div class="chk"><input type="checkbox" id="dither"><label for="dither">有序抖动（照片更自然）</label></div>
+      <div class="chk"><input type="checkbox" id="center"><label for="center">按墨迹自动居中</label></div>
+    </div>
+
+    <label>亮度 <span id="brVal">0</span></label>
+    <input type="range" id="br" min="-100" max="100" value="0">
+    <label>对比度 <span id="ctVal">0</span></label>
+    <input type="range" id="ct" min="-100" max="100" value="0">
+    <div class="chk"><input type="checkbox" id="inv"><label for="inv">反色（1 位模式下 = 黑白互换）</label></div>
+
+    <div class="btns">
+      <button id="regen">重新生成</button>
+    </div>
+    <div class="info" id="info"></div>
+  </div>
+
+  <div class="panel wide">
+    <h2>预览</h2>
+    <div class="previews">
+      <div class="pv"><div class="cap">原图</div><canvas id="src"></canvas></div>
+      <div class="pv"><div class="cap">转换结果（放大）</div><canvas id="dst"></canvas></div>
+    </div>
+    <div class="hint" id="pvHint">还没有载入图片。可以先把画图/截图里的单字存成 PNG 再拖进来。</div>
+  </div>
+
+  <div class="panel wide">
+    <h2>生成结果</h2>
+    <div class="row" style="margin-bottom:10px">
+      <select id="fmt">
+        <option value="array">完整数组声明</option>
+        <option value="init">只要初始化列表</option>
+      </select>
+      <select id="perline">
+        <option value="16" selected>每行 16 字节</option>
+        <option value="8">每行 8 字节</option>
+        <option value="32">每行 32 字节</option>
+      </select>
+    </div>
+    <div class="chk" style="margin-top:0"><input type="checkbox" id="hdr" checked>
+      <label for="hdr">加 8 字节图片头（Image2Lcd 格式，配合 gImage_xxx 用法）</label></div>
+    <label>变量名</label>
+    <input type="text" id="vname" value="gImage_pic">
+    <div class="btns" style="margin:10px 0">
+      <button id="copy">复制全部</button>
+      <button class="ghost" id="download">下载 .h</button>
+    </div>
+    <pre id="out"></pre>
+    <div class="hint">
+      RGB565 默认按<b>小端</b>输出（低字节在前），与工程里的 <code>gImage_k1271cn</code> 一致。<br>
+      勾选图片头时用 <code>TFT_DrawImageHdr(x, y, 数组名)</code> 直接显示；<br>
+      未勾选时用 <code>TFT_DrawImage(x, y, w, h, 数组名)</code>。<br>
+      单色位图与字模格式按<b>逐行、高位在左</b>输出，与 <code>hz16[]</code> 字模一致。
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var srcCanvas = $("src"), dstCanvas = $("dst");
+  var fileInput = $("file"), dropZone = $("drop");
+  var wIn = $("w"), hIn = $("h"), keepBox = $("keep"), algoSel = $("algo");
+  var modeSel = $("mode"), fontOpts = $("fontOpts"), monoOpts = $("monoOpts"), charKey = $("charkey");
+  var thRange = $("th"), thVal = $("thVal"), ditherBox = $("dither"), centerBox = $("center");
+  var brRange = $("br"), brVal = $("brVal"), ctRange = $("ct"), ctVal = $("ctVal"), invBox = $("inv");
+  var fmtSel = $("fmt"), perLineSel = $("perline"), hdrBox = $("hdr"), vnameIn = $("vname");
+  var outBox = $("out"), infoBox = $("info"), pvHint = $("pvHint");
+
+  var work = document.createElement("canvas");
+  var srcImg = null;                 /* 原始图片 */
+  var lastBytes = [];                /* 生成的字节 */
+
+  /* ---------- 工具 ---------- */
+  function hex2(v) { return (v < 16 ? "0x0" : "0x") + v.toString(16).toUpperCase(); }
+  function clamp255(v) { return v < 0 ? 0 : (v > 255 ? 255 : v | 0); }
+
+  /* 亮度 / 对比度 */
+  function adj(v) {
+    var c = parseFloat(ctRange.value) / 100;
+    var b = parseFloat(brRange.value) * 255 / 200;
+    var k = (1 + c) / (1 - c * 0.6);
+    return clamp255((v - 128) * k + 128 + b);
+  }
+
+  /* ---------- 载入图片 ---------- */
+  function loadImage(src) {
+    var im = new Image();
+    im.onload = function () {
+      srcImg = im;
+      if (!wIn.dataset.touched) { wIn.value = Math.min(im.width, 512); }
+      if (!hIn.dataset.touched) { hIn.value = Math.min(im.height, 512); }
+      pvHint.textContent = "原图 " + im.width + "x" + im.height + "，已按上面的尺寸缩放取模。";
+      render();
+    };
+    im.onerror = function () { pvHint.textContent = "图片读取失败。"; };
+    im.src = src;
+  }
+
+  function readFile(f) {
+    if (!f || f.type.indexOf("image") !== 0) { pvHint.textContent = "请选择图片文件。"; return; }
+    var r = new FileReader();
+    r.onload = function () { loadImage(r.result); };
+    r.readAsDataURL(f);
+  }
+
+  /* ---------- 生成 ---------- */
+  function render() {
+    var W = Math.max(1, parseInt(wIn.value, 10) || 1);
+    var H = Math.max(1, parseInt(hIn.value, 10) || 1);
+    var mode = modeSel.value;
+    var mono = (mode !== "rgb565");
+
+    fontOpts.style.display = (mode === "font") ? "" : "none";
+    monoOpts.style.display = mono ? "" : "none";
+
+    /* 目标画布 */
+    work.width = W; work.height = H;
+    var ctx = work.getContext("2d", { willReadFrequently: true });
+    var algo = algoSel.value;
+    ctx.imageSmoothingEnabled = (algo !== "nearest");
+    ctx.imageSmoothingQuality = (algo === "high") ? "high" : "medium";
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, H);
+
+    var dw = W, dh = H, ox = 0, oy = 0;
+    if (srcImg) {
+      if (keepBox.checked) {
+        var s = Math.min(W / srcImg.width, H / srcImg.height);
+        dw = Math.max(1, Math.round(srcImg.width * s));
+        dh = Math.max(1, Math.round(srcImg.height * s));
+        ox = Math.floor((W - dw) / 2);
+        oy = Math.floor((H - dh) / 2);
+      }
+      ctx.drawImage(srcImg, ox, oy, dw, dh);
+    }
+
+    /* 原图预览 */
+    if (srcImg) {
+      var maxs = 260, sc = Math.min(1, maxs / Math.max(srcImg.width, srcImg.height));
+      srcCanvas.width = Math.round(srcImg.width * sc);
+      srcCanvas.height = Math.round(srcImg.height * sc);
+      var sctx = srcCanvas.getContext("2d");
+      sctx.imageSmoothingEnabled = true;
+      sctx.clearRect(0, 0, srcCanvas.width, srcCanvas.height);
+      sctx.drawImage(srcImg, 0, 0, srcCanvas.width, srcCanvas.height);
+    } else {
+      srcCanvas.width = 160; srcCanvas.height = 120;
+      srcCanvas.getContext("2d").fillStyle = "#10131a";
+      srcCanvas.getContext("2d").fillRect(0, 0, 160, 120);
+    }
+
+    var d = ctx.getImageData(0, 0, W, H).data;
+    var bytes;
+
+    if (mode === "rgb565") {
+      bytes = rgb565Bytes(d, W, H);
+    } else {
+      bytes = monoBytes(d, W, H);
+      if (centerBox.checked) { /* 居中已在像素层完成，见下 */ }
+    }
+
+    drawResult(W, H, d, mono);
+    lastBytes = bytes;
+
+    var total = bytes.length + (hdrBox.checked && mode !== "font" ? 8 : 0);
+    infoBox.textContent = W + "x" + H + "，" + (mono ? "单色 1 位" : "RGB565") +
+      "，数据 " + bytes.length + " 字节" +
+      (hdrBox.checked && mode !== "font" ? "（含头共 " + total + " 字节）" : "") +
+      "，约 " + (total / 1024).toFixed(1) + " KB Flash";
+
+    buildOutput(W, H, mode, bytes);
+  }
+
+  /* ---------- RGB565 ---------- */
+  function rgb565Bytes(d, W, H) {
+    var a = [];
+    for (var i = 0; i < W * H; i++) {
+      var r = adj(d[i * 4]), g = adj(d[i * 4 + 1]), b = adj(d[i * 4 + 2]);
+      var v = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+      a.push(v & 0xFF, (v >> 8) & 0xFF);          /* 小端：低字节在前 */
+    }
+    return a;
+  }
+
+  /* ---------- 单色 1 位 ---------- */
+  var BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+
+  function monoPixels(d, W, H) {
+    var th = parseInt(thRange.value, 10);
+    var inv = invBox.checked;
+    var useDither = ditherBox.checked;
+    var rows = [];
+    for (var y = 0; y < H; y++) {
+      var row = [];
+      for (var x = 0; x < W; x++) {
+        var i = (y * W + x) * 4;
+        var r = adj(d[i]), g = adj(d[i + 1]), b = adj(d[i + 2]);
+        var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        var t = th;
+        if (useDither) { t = th + (BAYER[y & 3][x & 3] - 7.5) * (255 / 16); }
+        var on = (lum < t) ? 1 : 0;               /* 暗 = 墨迹 */
+        if (inv) { on = 1 - on; }
+        row.push(on);
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  /* 按墨迹外框居中 */
+  function autoCenter(rows, w, h) {
+    var x0 = w, x1 = -1, y0 = h, y1 = -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (rows[y][x]) {
+          if (x < x0) { x0 = x; }
+          if (x > x1) { x1 = x; }
+          if (y < y0) { y0 = y; }
+          if (y > y1) { y1 = y; }
+        }
+      }
+    }
+    if (x1 < 0) { return rows; }
+    var sx = Math.round((w - (x1 - x0 + 1)) / 2) - x0;
+    var sy = Math.round((h - (y1 - y0 + 1)) / 2) - y0;
+    var out = [];
+    for (var yy = 0; yy < h; yy++) {
+      var r = [];
+      for (var xx = 0; xx < w; xx++) {
+        var sY = yy - sy, sX = xx - sx;
+        r.push((sY >= 0 && sY < h && sX >= 0 && sX < w) ? rows[sY][sX] : 0);
+      }
+      out.push(r);
+    }
+    return out;
+  }
+
+  function monoBytes(d, W, H) {
+    var rows = monoPixels(d, W, H);
+    if (centerBox.checked) { rows = autoCenter(rows, W, H); }
+    var a = [];
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x += 8) {
+        var v = 0;
+        for (var k = 0; k < 8; k++) {
+          if ((x + k) < W && rows[y][x + k]) { v |= (0x80 >> k); }
+        }
+        a.push(v);
+      }
+    }
+    return a;
+  }
+
+  /* ---------- 结果预览 ---------- */
+  function drawResult(W, H, d, mono) {
+    var zoom = Math.max(1, Math.min(4, Math.floor(300 / Math.max(W, H))));
+    dstCanvas.width = W * zoom;
+    dstCanvas.height = H * zoom;
+    var ctx = dstCanvas.getContext("2d");
+    ctx.fillStyle = "#10131a";
+    ctx.fillRect(0, 0, dstCanvas.width, dstCanvas.height);
+
+    if (mono) {
+      var rows = monoPixels(d, W, H);
+      if (centerBox.checked) { rows = autoCenter(rows, W, H); }
+      ctx.fillStyle = "#a3be8c";
+      for (var y = 0; y < H; y++) {
+        for (var x = 0; x < W; x++) {
+          if (rows[y][x]) { ctx.fillRect(x * zoom, y * zoom, zoom, zoom); }
+        }
+      }
+    } else {
+      for (var yy = 0; yy < H; yy++) {
+        for (var xx = 0; xx < W; xx++) {
+          var i = (yy * W + xx) * 4;
+          var r = adj(d[i]), g = adj(d[i + 1]), b = adj(d[i + 2]);
+          /* 用 565 量化后的颜色预览，所见即所得 */
+          var v = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+          ctx.fillStyle = "rgb(" + (((v >> 11) & 0x1F) * 255 / 31 | 0) + "," +
+                                  (((v >> 5) & 0x3F) * 255 / 63 | 0) + "," +
+                                  ((v & 0x1F) * 255 / 31 | 0) + ")";
+          ctx.fillRect(xx * zoom, yy * zoom, zoom, zoom);
+        }
+      }
+    }
+    /* 网格 */
+    if (zoom >= 3) {
+      ctx.strokeStyle = "rgba(76,86,106,0.35)";
+      for (var i2 = 0; i2 <= W; i2++) {
+        ctx.beginPath(); ctx.moveTo(i2 * zoom + .5, 0); ctx.lineTo(i2 * zoom + .5, dstCanvas.height); ctx.stroke();
+      }
+      for (var j2 = 0; j2 <= H; j2++) {
+        ctx.beginPath(); ctx.moveTo(0, j2 * zoom + .5); ctx.lineTo(dstCanvas.width, j2 * zoom + .5); ctx.stroke();
+      }
+    }
+  }
+
+  /* ---------- 输出 ---------- */
+  function bodyLines(bytes, per, indent) {
+    var t = [];
+    for (var i = 0; i < bytes.length; i += per) {
+      t.push(indent + bytes.slice(i, i + per).map(hex2).join(",") + ",");
+    }
+    return t.join("\n");
+  }
+
+  function buildOutput(W, H, mode, bytes) {
+    var per = parseInt(perLineSel.value, 10);
+    var text = "";
+
+    if (mode === "font") {
+      var body = bytes.map(hex2).join(",");
+      text = "{{'" + (charKey.value || "?") + "'}, {" + body + "}},   /* " + W + "x" + H + " 字模 */";
+      outBox.textContent = text;
+      return;
+    }
+
+    var useHdr = hdrBox.checked;
+    var hdr = [];
+    if (useHdr) {
+      hdr = [0x00, 0x10, W & 0xFF, (W >> 8) & 0xFF, H & 0xFF, (H >> 8) & 0xFF, 0x01, 0x1B];
+    }
+    var all = hdr.concat(bytes);
+    var name = vnameIn.value || "gImage_pic";
+    var kind = (mode === "rgb565") ? "RGB565" : "1-bit";
+
+    if (fmtSel.value === "array") {
+      text = "/* " + W + "x" + H + " " + kind + ", " + all.length + " bytes */\n" +
+             "const unsigned char " + name + "[" + all.length + "] = {\n" +
+             (useHdr ? "  /* 8 字节图片头 */\n" + bodyLines(hdr, 8, "  ") + "\n" : "") +
+             bodyLines(bytes, per, "  ") + "\n};";
+    } else {
+      text = bodyLines(all, per, "");
+    }
+    outBox.textContent = text;
+  }
+
+  /* ---------- 事件 ---------- */
+  dropZone.onclick = function () { fileInput.click(); };
+  fileInput.onchange = function () { readFile(fileInput.files[0]); };
+
+  ["dragenter", "dragover"].forEach(function (ev) {
+    dropZone.addEventListener(ev, function (e) { e.preventDefault(); dropZone.classList.add("on"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    dropZone.addEventListener(ev, function (e) { e.preventDefault(); dropZone.classList.remove("on"); });
+  });
+  dropZone.addEventListener("drop", function (e) {
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) { readFile(e.dataTransfer.files[0]); }
+  });
+  window.addEventListener("dragover", function (e) { e.preventDefault(); });
+  window.addEventListener("drop", function (e) { e.preventDefault(); });
+  window.addEventListener("paste", function (e) {
+    var items = (e.clipboardData || {}).items || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") === 0) { readFile(items[i].getAsFile()); e.preventDefault(); return; }
+    }
+  });
+
+  [wIn, hIn].forEach(function (el) {
+    el.addEventListener("input", function () { el.dataset.touched = "1"; render(); });
+  });
+  [keepBox, algoSel, modeSel, ditherBox, centerBox, invBox, hdrBox, fmtSel, perLineSel, vnameIn, charKey]
+    .forEach(function (el) {
+      el.addEventListener("input", render);
+      el.addEventListener("change", render);
+    });
+  thRange.addEventListener("input", function () { thVal.textContent = thRange.value; render(); });
+  brRange.addEventListener("input", function () { brVal.textContent = brRange.value; render(); });
+  ctRange.addEventListener("input", function () { ctVal.textContent = ctRange.value; render(); });
+  $("regen").onclick = render;
+
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t); }
+    else {
+      var ta = document.createElement("textarea");
+      ta.value = t; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+    }
+  }
+  $("copy").onclick = function () { copyText(outBox.textContent); };
+  $("download").onclick = function () {
+    var blob = new Blob([outBox.textContent], { type: "text/plain;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (vnameIn.value || "image") + ".h";
+    a.click();
+  };
+
+  thVal.textContent = thRange.value;
+  brVal.textContent = brRange.value;
+  ctVal.textContent = ctRange.value;
+  render();
+})();
+</script>
+</body>
+</html>

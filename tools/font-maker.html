@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="gbk">
+<title>TFT 字模生成器</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: #1b1f27; color: #d8dee9;
+    font: 13px/1.6 "Microsoft YaHei", "微软雅黑", "PingFang SC", sans-serif;
+  }
+  h1 { margin: 0 0 4px; font-size: 18px; color: #8fbcbb; }
+  .tip { color: #7d8799; font-size: 12px; margin-bottom: 14px; }
+  code { color: #ebcb8b; }
+  .wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .panel {
+    background: #232833; border: 1px solid #313846; border-radius: 8px;
+    padding: 14px; flex: 0 0 300px;
+  }
+  .panel.wide { flex: 1 1 440px; min-width: 360px; }
+  .panel h2 { margin: 0 0 10px; font-size: 14px; color: #88c0d0; font-weight: 600; }
+  label { display: block; margin: 10px 0 4px; color: #a6b0bf; font-size: 12px; }
+  input[type=text], select, textarea {
+    width: 100%; background: #1b1f27; color: #e5e9f0; border: 1px solid #3b4252;
+    border-radius: 5px; padding: 6px 8px; font-size: 13px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 58px; }
+  input[type=range] { width: 100%; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; min-width: 0; }
+  .chk { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #a6b0bf; font-size: 12px; }
+  .chk input { width: auto; }
+  .chk label { margin: 0; }
+  button {
+    background: #3b5b8c; color: #fff; border: 0; border-radius: 5px;
+    padding: 7px 12px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #4a6fa5; }
+  button.ghost { background: #3b4252; }
+  button.ghost:hover { background: #4c566a; }
+  button.mini { padding: 3px 8px; font-size: 11px; margin: 0 2px; }
+  .btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .grid { display: flex; flex-wrap: wrap; gap: 14px; }
+  .cell { text-align: center; }
+  .cell .cap { font-size: 12px; color: #a6b0bf; margin-bottom: 4px; }
+  .cell .cap b { color: #ebcb8b; font-weight: 600; }
+  canvas {
+    image-rendering: pixelated; cursor: crosshair; display: block;
+    border: 1px solid #4c566a; border-radius: 3px; background: #10131a;
+  }
+  .cell .tools { margin-top: 5px; white-space: nowrap; }
+  .badge { color: #d08770; }
+  pre {
+    background: #10131a; border: 1px solid #313846; border-radius: 6px;
+    padding: 10px; margin: 0; overflow: auto; max-height: 420px;
+    font: 12px/1.55 "Consolas", "DejaVu Sans Mono", monospace; color: #a3be8c;
+    white-space: pre; tab-size: 8;
+  }
+  .hint { color: #7d8799; font-size: 11px; margin-top: 8px; }
+  .err { color: #bf616a; font-size: 12px; margin-top: 6px; min-height: 18px; white-space: pre-line; }
+</style>
+</head>
+<body>
+
+<h1>TFT 字模生成器</h1>
+<div class="tip">
+  输入文字 → 自动渲染成点阵 → 点格子可手动微调 → 复制生成的 C 代码到 Font.h 的 hz16[] / hz24[]。
+  字模键用字符常量（如 <code>{{'你'}, {0x..}},</code>），源文件保存为 UTF-8 或 GBK 都能直接匹配。
+</div>
+
+<div class="wrap">
+
+  <div class="panel">
+    <h2>参数</h2>
+
+    <label>要取模的字符（可多字，逐字生成）</label>
+    <textarea id="chars" spellcheck="false">你好世界</textarea>
+
+    <div class="row">
+      <div>
+        <label>点阵宽</label>
+        <select id="w">
+          <option>8</option><option>12</option><option>16</option>
+          <option>24</option><option>32</option>
+        </select>
+      </div>
+      <div>
+        <label>点阵高</label>
+        <select id="h">
+          <option>8</option><option>12</option><option>16</option>
+          <option>24</option><option>32</option>
+        </select>
+      </div>
+    </div>
+
+    <label>字体</label>
+    <input type="text" id="font" list="fonts" value="sans-serif">
+    <datalist id="fonts">
+      <option value="SimSun">宋体（点阵效果最好）</option>
+      <option value="SimHei">黑体</option>
+      <option value="KaiTi">楷体</option>
+      <option value="FangSong">仿宋</option>
+      <option value="Microsoft YaHei">微软雅黑</option>
+      <option value="Noto Sans CJK SC">Noto Sans CJK</option>
+      <option value="Noto Serif CJK SC">Noto Serif CJK</option>
+      <option value="WenQuanYi Bitmap Song">文泉驿点阵宋体</option>
+      <option value="AR PL UMing CN">AR PL UMing</option>
+      <option value="monospace">等宽</option>
+    </datalist>
+
+    <div class="row">
+      <div>
+        <label>渲染倍率</label>
+        <select id="ss">
+          <option value="1">1x（仅装有宋体/点阵字体时）</option>
+          <option value="2">2x</option>
+          <option value="3" selected>3x（矢量字体推荐）</option>
+          <option value="4">4x</option>
+        </select>
+      </div>
+      <div>
+        <label>可用字体</label>
+        <div id="fontHint" style="font-size:11px;color:#7d8799;padding-top:8px">检测中…</div>
+      </div>
+    </div>
+
+      <div>
+        <label>笔画修正</label>
+        <select id="morph">
+          <option value="0" selected>不处理</option>
+          <option value="1">加粗 1px</option>
+          <option value="2">加粗 2px</option>
+          <option value="3">细化 1px</option>
+        </select>
+      </div>
+    </div>
+
+    <label>二值化阈值：<span id="thVal">90</span>（越低越不容易丢细笔画）</label>
+    <input type="range" id="th" min="1" max="254" value="90">
+
+    <div class="row">
+      <div>
+        <label>水平微调 <span id="dxVal">0</span></label>
+        <input type="range" id="dx" min="-6" max="6" value="0">
+      </div>
+      <div>
+        <label>垂直微调 <span id="dyVal">0</span></label>
+        <input type="range" id="dy" min="-6" max="6" value="0">
+      </div>
+    </div>
+
+    <div class="chk"><input type="checkbox" id="center" checked><label for="center">自动居中（按墨迹范围）</label></div>
+    <div class="chk"><input type="checkbox" id="bold"><label for="bold">加粗</label></div>
+    <div class="chk"><input type="checkbox" id="invert"><label for="invert">反白（取反）</label></div>
+    <div class="chk"><input type="checkbox" id="dedup" checked><label for="dedup">重复字符只保留一个</label></div>
+
+    <div class="btns">
+      <button id="regen">重新生成</button>
+      <button class="ghost" id="clearEdit">放弃手动修改</button>
+    </div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="panel wide">
+    <h2>预览（点击 / 拖动可切换像素）</h2>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="panel wide">
+    <h2>生成结果</h2>
+    <div class="row" style="margin-bottom:10px">
+      <select id="fmt">
+        <option value="cjk">汉字格式  {{'字'}, {0x..}},</option>
+        <option value="bytes">纯字节序列  0x..,0x..,</option>
+      </select>
+      <select id="perline">
+        <option value="0">每字一行</option>
+        <option value="8">每行 8 字节</option>
+        <option value="16">每行 16 字节</option>
+      </select>
+    </div>
+    <pre id="out"></pre>
+    <div class="btns">
+      <button id="copy">复制全部</button>
+      <button class="ghost" id="download">下载 .txt</button>
+    </div>
+    <div class="hint">
+      用法：把生成的一整行粘贴进 Font.h 的 hz16[] / hz24[] 即可。
+      驱动按源文件编码自动匹配：GBK 源里 '你' = 0xC4E3，UTF-8 源里 '你' = 0xE4BDA0，两种都能直接显示。<br>
+      提示：点阵友好的字体是宋体 / 文泉驿点阵宋体；16x16 请用 16px，24x24 请用 24px。
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var SCALE = 12;                       /* 预览放大倍数 */
+
+  var charsBox = $("chars"), wSel = $("w"), hSel = $("h"), fontBox = $("font");
+  var thRange = $("th"), thVal = $("thVal");
+  var dxRange = $("dx"), dxVal = $("dxVal");
+  var dyRange = $("dy"), dyVal = $("dyVal");
+  var ssSel = $("ss"), morphSel = $("morph");
+  var centerBox = $("center"), boldBox = $("bold"), invertBox = $("invert"), dedupBox = $("dedup");
+  var fmtSel = $("fmt"), perLineSel = $("perline"), outBox = $("out"), errBox = $("err");
+  var gridBox = $("grid");
+
+  var glyphs = [];                      /* [{ch, rows, edited}] */
+
+  /* ---------------- 由系统字体渲染出一位点阵 ---------------- */
+  /*  三个要点：
+      1) ss>1 超采样：放大绘制后按 ss x ss 求覆盖率，小字号下笔画才连续；
+      2) 四周留白：浏览器按字体 ascent/descent 定位，汉字墨迹整体偏上，
+         不留白会把最上面那一横裁掉（界 / 啊 丢横画的元凶）；
+      3) 取样窗口按墨迹外框定位，而不是按画布中心。 */
+  function renderFromCanvas(ch, w, h) {
+    var ss   = parseInt(ssSel.value, 10) || 1;
+    var cw   = w * ss, chh = h * ss;
+    var pad  = Math.ceil(Math.max(cw, chh) * 0.35);
+    var W    = cw + 2 * pad, H = chh + 2 * pad;
+    var fontPx = chh;
+    var img = null;
+    var bx0 = W, bx1 = -1, by0 = H, by1 = -1;
+    var pass, x, y;
+
+    var dxPix = parseInt(dxRange.value, 10) * ss;
+    var dyPix = parseInt(dyRange.value, 10) * ss;
+
+    for (pass = 0; pass < 2; pass++) {
+      var cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      var ctx = cv.getContext("2d", { willReadFrequently: true });
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = "#000";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = (boldBox.checked ? "bold " : "") + fontPx + "px " + (fontBox.value || "sans-serif");
+      ctx.fillText(ch, W / 2 + dxPix, H / 2 + dyPix);
+      img = ctx.getImageData(0, 0, W, H).data;
+
+      /* 求墨迹外框 */
+      bx0 = W; bx1 = -1; by0 = H; by1 = -1;
+      for (y = 0; y < H; y++) {
+        for (x = 0; x < W; x++) {
+          if (img[(y * W + x) * 4 + 3] > 16) {
+            if (x < bx0) { bx0 = x; }
+            if (x > bx1) { bx1 = x; }
+            if (y < by0) { by0 = y; }
+            if (y > by1) { by1 = y; }
+          }
+        }
+      }
+      if (bx1 < bx0 || by1 < by0) { break; }          /* 空白字符 */
+
+      /* 墨迹比格子还大时缩小字号重画一次，避免被裁 */
+      var k = Math.min(1, cw / (bx1 - bx0 + 1), chh / (by1 - by0 + 1));
+      if (k > 0.999) { break; }
+      fontPx = Math.floor(fontPx * k * 0.97);
+    }
+
+    /* 取样窗口：开自动居中时对准墨迹中心，否则按画布（字身框）中心 */
+    var scx = W / 2, scy = H / 2;
+    if (centerBox.checked && bx1 >= bx0 && by1 >= by0) {
+      scx = (bx0 + bx1 + 1) / 2;
+      scy = (by0 + by1 + 1) / 2;
+    }
+    var ox = Math.round(scx - cw / 2);
+    var oy = Math.round(scy - chh / 2);
+
+    var need = parseInt(thRange.value, 10) / 255;     /* 每格需要的墨迹覆盖率 */
+    var inv = invertBox.checked;
+    var rows = [];
+    for (y = 0; y < h; y++) {
+      var row = [];
+      for (x = 0; x < w; x++) {
+        var sum = 0;
+        for (var sy = 0; sy < ss; sy++) {
+          var py = oy + y * ss + sy;
+          for (var sx = 0; sx < ss; sx++) {
+            var px = ox + x * ss + sx;
+            if (px >= 0 && px < W && py >= 0 && py < H) {
+              sum += img[(py * W + px) * 4 + 3];
+            }
+          }
+        }
+        var on = (sum / (255 * ss * ss)) >= need;
+        if (inv) { on = !on; }
+        row.push(on ? 1 : 0);
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  /* 用等宽字体做参照，探测某个字体是否真的可用；
+     Linux 下 fontconfig 会做别名替换，结果仅供参考 */
+  function hasFont(name) {
+    var ctx = document.createElement("canvas").getContext("2d");
+    var text = "汉字測ABC";
+    ctx.font = "16px monospace";
+    var base = ctx.measureText(text).width;
+    ctx.font = "16px \"" + name + "\", monospace";
+    return Math.abs(ctx.measureText(text).width - base) > 0.5;
+  }
+
+  function showFontHint() {
+    var names = ["SimSun", "SimHei", "Microsoft YaHei", "Noto Sans CJK SC", "Droid Sans Fallback"];
+    var got = [];
+    for (var i = 0; i < names.length; i++) {
+      if (hasFont(names[i])) { got.push(names[i]); }
+    }
+    document.getElementById("fontHint").textContent = got.length ? got.join(" / ") : "未检测到";
+  }
+
+  /* 按墨迹外框居中（很多字体直接画会偏上/偏左） */
+  /* 形态学修正：加粗/细化，用来补救阈值二值化后断掉的笔画 */
+  function morph(rows, mode) {
+    var h = rows.length, w = rows[0].length;
+    if (!mode) { return rows; }
+    var pass, grow = (mode !== 3), times = (mode === 2) ? 2 : 1;
+    var out = rows;
+    for (pass = 0; pass < times; pass++) {
+      var src = out.map(function (r) { return r.slice(); });
+      var dst = [];
+      for (var y = 0; y < h; y++) {
+        var row = [];
+        for (var x = 0; x < w; x++) {
+          var v = src[y][x];
+          var nb = [
+            (x > 0)     ? src[y][x - 1] : 0,
+            (x < w - 1) ? src[y][x + 1] : 0,
+            (y > 0)     ? src[y - 1][x] : 0,
+            (y < h - 1) ? src[y + 1][x] : 0
+          ];
+          if (grow) {
+            if (!v && (nb[0] || nb[1] || nb[2] || nb[3])) { v = 1; }
+          } else {
+            if (v && (!nb[0] || !nb[1] || !nb[2] || !nb[3])) { v = 0; }
+          }
+          row.push(v);
+        }
+        dst.push(row);
+      }
+      out = dst;
+    }
+    return out;
+  }
+
+  function autoCenter(rows, w, h) {
+    var x0 = w, x1 = -1, y0 = h, y1 = -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (rows[y][x]) {
+          if (x < x0) { x0 = x; }
+          if (x > x1) { x1 = x; }
+          if (y < y0) { y0 = y; }
+          if (y > y1) { y1 = y; }
+        }
+      }
+    }
+    if (x1 < 0) { return rows; }                    /* 空白字模 */
+    var sx = Math.round((w - (x1 - x0 + 1)) / 2) - x0;
+    var sy = Math.round((h - (y1 - y0 + 1)) / 2) - y0;
+    var out = [];
+    for (var yy = 0; yy < h; yy++) {
+      var r = [];
+      for (var xx = 0; xx < w; xx++) {
+        var sY = yy - sy, sX = xx - sx;
+        r.push((sY >= 0 && sY < h && sX >= 0 && sX < w) ? rows[sY][sX] : 0);
+      }
+      out.push(r);
+    }
+    return out;
+  }
+
+  function build(ch) {
+    var w = parseInt(wSel.value, 10), h = parseInt(hSel.value, 10);
+    var rows = renderFromCanvas(ch, w, h);
+    rows = morph(rows, parseInt(morphSel.value, 10));
+    if (centerBox.checked) { rows = autoCenter(rows, w, h); }
+    return rows;
+  }
+
+  /* 统计墨迹占比，过低提示可能丢笔画 */
+  function inkRatio(rows) {
+    var h = rows.length, w = rows[0].length, n = 0;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) { if (rows[y][x]) { n++; } }
+    }
+    return n / (w * h);
+  }
+
+  /* 每行平均的 0/1 跳变次数 = 竖画密度。
+     超过 宽度 x 0.45 就说明笔画和间隙都排不下 1 像素，必然糊成一团。 */
+  function isTooDense(rows) {
+    var h = rows.length, w = rows[0].length, tr = 0;
+    for (var y = 0; y < h; y++) {
+      var prev = 0;
+      for (var x = 0; x < w; x++) {
+        if (rows[y][x] !== prev) { tr++; prev = rows[y][x]; }
+      }
+    }
+    return (tr / h) >= (w * 0.45);
+  }
+
+  /* ---------------- 预览 ---------------- */
+  function drawPreview(canvas, rows) {
+    var w = rows[0].length, h = rows.length;
+    canvas.width = w * SCALE;
+    canvas.height = h * SCALE;
+    var ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#10131a";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#a3be8c";
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (rows[y][x]) { ctx.fillRect(x * SCALE, y * SCALE, SCALE, SCALE); }
+      }
+    }
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(76,86,106,0.45)";
+    for (var i = 0; i <= w; i++) {
+      ctx.beginPath(); ctx.moveTo(i * SCALE + .5, 0); ctx.lineTo(i * SCALE + .5, canvas.height); ctx.stroke();
+    }
+    for (var j = 0; j <= h; j++) {
+      ctx.beginPath(); ctx.moveTo(0, j * SCALE + .5); ctx.lineTo(canvas.width, j * SCALE + .5); ctx.stroke();
+    }
+    /* 每 8 列一条亮线，方便和字节对齐 */
+    ctx.strokeStyle = "rgba(136,192,208,0.55)";
+    for (var k = 0; k <= w; k += 8) {
+      ctx.beginPath(); ctx.moveTo(k * SCALE + .5, 0); ctx.lineTo(k * SCALE + .5, canvas.height); ctx.stroke();
+    }
+  }
+
+  /* ---------------- 输出 ---------------- */
+  function toBytes(rows, w) {
+    var n = Math.ceil(w / 8), out = [], y, b, i, v;
+    for (y = 0; y < rows.length; y++) {
+      for (b = 0; b < n; b++) {
+        v = 0;
+        for (i = 0; i < 8; i++) {
+          if ((b * 8 + i) < w && rows[y][b * 8 + i]) { v |= (0x80 >> i); }
+        }
+        out.push(v);
+      }
+    }
+    return out;
+  }
+
+  function hex2(v) { return (v < 16 ? "0x0" : "0x") + v.toString(16).toUpperCase(); }
+  function esc(ch) { return ch === "'" ? "\\'" : (ch === "\\" ? "\\\\" : ch); }
+
+  function entryOf(g) {
+    var w = g.rows[0].length;
+    return "{{'" + esc(g.ch) + "'}, {" + toBytes(g.rows, w).map(hex2).join(",") + "}},";
+  }
+
+  function buildOutput() {
+    var fmt = fmtSel.value, per = parseInt(perLineSel.value, 10), lines = [];
+    for (var i = 0; i < glyphs.length; i++) {
+      var g = glyphs[i];
+      var bytes = toBytes(g.rows, g.rows[0].length);
+      var body;
+      if (per > 0) {
+        var parts = [];
+        for (var k = 0; k < bytes.length; k += per) {
+          parts.push(bytes.slice(k, k + per).map(hex2).join(","));
+        }
+        body = parts.join(",\n    ");
+      } else {
+        body = bytes.map(hex2).join(",");
+      }
+      if (fmt === "cjk") {
+        lines.push("{{'" + esc(g.ch) + "'}, {" + body + "}},   /* " +
+                   g.ch + " " + g.rows[0].length + "x" + g.rows.length + " */");
+      } else {
+        lines.push("/* " + g.ch + " */  " + body + ",");
+      }
+    }
+    outBox.textContent = lines.join("\n");
+  }
+
+  /* ---------------- 列表与编辑 ---------------- */
+  function setCaption(cap, g) {
+    cap.textContent = "";
+    var b = document.createElement("b");
+    b.textContent = (g.ch === " " ? "(空格)" : g.ch);
+    cap.appendChild(b);
+    cap.appendChild(document.createTextNode(
+      " " + g.rows[0].length + "x" + g.rows.length + (g.edited ? "  [已手改]" : "")));
+  }
+
+  function renderGrid() {
+    gridBox.textContent = "";
+    if (!glyphs.length) { errBox.textContent = "请输入要取模的字符"; return; }
+
+    glyphs.forEach(function (g) {
+      var cell = document.createElement("div");
+      cell.className = "cell";
+
+      var cap = document.createElement("div");
+      cap.className = "cap";
+      cell.appendChild(cap);
+
+      var cv = document.createElement("canvas");
+      cell.appendChild(cv);
+
+      var tools = document.createElement("div");
+      tools.className = "tools";
+
+      var b1 = document.createElement("button");
+      b1.className = "ghost mini";
+      b1.textContent = "重画";
+      b1.onclick = function () {
+        g.rows = build(g.ch);
+        g.edited = false;
+        drawPreview(cv, g.rows);
+        setCaption(cap, g);
+        buildOutput();
+      };
+      tools.appendChild(b1);
+
+      var b2 = document.createElement("button");
+      b2.className = "ghost mini";
+      b2.textContent = "复制本字";
+      b2.onclick = function () { copyText(entryOf(g)); };
+      tools.appendChild(b2);
+
+      cell.appendChild(tools);
+
+      /* 点击切换像素 */
+      var drawing = false;
+      function toggle(ev) {
+        var r = cv.getBoundingClientRect();
+        var x = Math.floor((ev.clientX - r.left) / SCALE);
+        var y = Math.floor((ev.clientY - r.top) / SCALE);
+        if (y < 0 || y >= g.rows.length || x < 0 || x >= g.rows[0].length) { return; }
+        g.rows[y][x] = g.rows[y][x] ? 0 : 1;
+        g.edited = true;
+        drawPreview(cv, g.rows);
+        setCaption(cap, g);
+        buildOutput();
+      }
+      cv.addEventListener("mousedown", function (e) { drawing = true; toggle(e); e.preventDefault(); });
+      cv.addEventListener("mousemove", function (e) { if (drawing) { toggle(e); } });
+      window.addEventListener("mouseup", function () { drawing = false; });
+
+      gridBox.appendChild(cell);
+      drawPreview(cv, g.rows);
+      setCaption(cap, g);
+    });
+  }
+
+  function rebuildAll() {
+    var txt = charsBox.value;
+    var list = [];
+    for (var i = 0; i < txt.length; i++) {
+      var ch = txt[i];
+      if (/\s/.test(ch)) { continue; }                 /* 跳过空白 */
+      if (dedupBox.checked && list.indexOf(ch) >= 0) { continue; }
+      list.push(ch);
+    }
+    var old = {};
+    for (var j = 0; j < glyphs.length; j++) { old[glyphs[j].ch] = glyphs[j]; }
+
+    glyphs = list.map(function (ch) {
+      if (old[ch] && old[ch].edited) { return old[ch]; }   /* 保留手动修改 */
+      return { ch: ch, rows: build(ch), edited: false };
+    });
+
+    /* 质量预警：
+       1) 墨迹太少 → 细横画可能被阈值吃掉（如 一、二）；
+       2) 笔画太密 → 当前点阵尺寸放不下，竖画会糊成栅格（如 啊 在 16x16）。 */
+    var msgs = [];
+
+    var thin = glyphs.filter(function (g) { return !g.edited && inkRatio(g.rows) < 0.05; });
+    if (thin.length) {
+      msgs.push("【" + thin.map(function (g) { return g.ch; }).join(" ") +
+        "】墨迹偏少，可能丢了细笔画；可把渲染倍率调到 3x、阈值调低，或用「笔画修正-加粗」。");
+    }
+
+    var dense = glyphs.filter(function (g) { return !g.edited && isTooDense(g.rows); });
+    if (dense.length) {
+      msgs.push("【" + dense.map(function (g) { return g.ch; }).join(" ") + "】笔画太密，" +
+        wSel.value + "x" + hSel.value + " 排不下（笔画与间隙都不到 1 像素，会糊成栅格）；" +
+        "请把点阵尺寸改成 24x24 或 32x32 再生成。");
+    }
+
+    errBox.textContent = msgs.join("\n");
+    renderGrid();
+    buildOutput();
+  }
+
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t);
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = t;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+  }
+
+  /* ---------------- 事件 ---------------- */
+  [charsBox, wSel, hSel, fontBox, ssSel, morphSel, centerBox, boldBox, invertBox, dedupBox].forEach(function (el) {
+    el.addEventListener("input", rebuildAll);
+    el.addEventListener("change", rebuildAll);
+  });
+  thRange.addEventListener("input", function () { thVal.textContent = thRange.value; rebuildAll(); });
+  dxRange.addEventListener("input", function () { dxVal.textContent = dxRange.value; rebuildAll(); });
+  dyRange.addEventListener("input", function () { dyVal.textContent = dyRange.value; rebuildAll(); });
+  $("regen").onclick = rebuildAll;
+  $("clearEdit").onclick = rebuildAll;
+  fmtSel.onchange = buildOutput;
+  perLineSel.onchange = buildOutput;
+  $("copy").onclick = function () { copyText(outBox.textContent); };
+  $("download").onclick = function () {
+    var blob = new Blob([outBox.textContent], { type: "text/plain;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "font_data.txt";
+    a.click();
+  };
+
+  /* ---------------- 启动 ---------------- */
+  wSel.value = "16";
+  hSel.value = "16";
+  showFontHint();
+  thVal.textContent = thRange.value;
+  dxVal.textContent = dxRange.value;
+  dyVal.textContent = dyRange.value;
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(rebuildAll);
+  }
+  rebuildAll();
+})();
+</script>
+</body>
+</html>
