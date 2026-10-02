@@ -91,7 +91,8 @@ git clone https://github.com/k1271max/TFT-Library.git
 - 安装 [VSCode](https://code.visualstudio.com/)
 - 安装以下扩展（`DeepSeek V4 for Copilot Chat` 不用装）：
 
-  ![扩展列表](docs/images/vscode-extensions.webp)
+  <img width="832" height="678" alt="image" src="https://github.com/user-attachments/assets/280f8adc-6cd3-49f4-bca3-6c37f79a8b24" />
+
 
 - 工具链：CMake ≥ 3.22、Ninja、`arm-none-eabi-gcc`（本工程验证于 `14.3.1+st.2`）
 
@@ -158,7 +159,8 @@ cmake --build build/Debug
 
 在 VSCode 中用调试模式自动配置项目，配置完成后点击生成文件：
 
-![生成文件](docs/images/build-output.webp)
+<img width="356" height="681" alt="image" src="https://github.com/user-attachments/assets/c05c4c85-876c-4cd2-9483-52bd19930dd4" />
+
 
 ### 7. 烧录
 
@@ -176,7 +178,8 @@ openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
 
 也可通过 VSCode 调试下载：
 
-![VSCode 调试下载](docs/images/debug-download.webp)
+<img width="368" height="713" alt="image" src="https://github.com/user-attachments/assets/ef58d35d-12e1-4a75-92cc-59b716cd8f00" />
+
 
 Hex 文件在 `Build` 文件夹下，可直接用其他工具烧录。
 
