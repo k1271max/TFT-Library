@@ -1,4 +1,4 @@
-# TFT-Library
+<img width="869" height="569" alt="image" src="https://github.com/user-attachments/assets/cad716c0-10c2-49ea-9369-501c080f3ac5" /># TFT-Library
 
 > STM32F1 + ST7735S 1.8" TFT（128×160）单文件驱动库 · 软件模拟 SPI · 纯 C99 · 无动态内存分配 · 可直接移植
 
@@ -28,10 +28,10 @@
 
 > 将截图放到 `docs/images/` 目录下，或替换为你的图片链接。
 
-![效果 1](docs/images/effect-1.webp)
-![效果 2](docs/images/effect-2.webp)
-![效果 3](docs/images/effect-3.webp)
-![效果 4](docs/images/effect-4.webp)
+![效果 1](https://blog.k1271.cn/static/img/6cfa44dbdd791ce6ffd06a9893dd5137.QQ20261002-093503.webp)
+![效果 2](https://blog.k1271.cn/static/img/64e48d2c41dae5ad867edb9d9c57471e.QQ20261002-093537.webp)
+![效果 3](https://blog.k1271.cn/static/img/cb80d40f0f135c45a701f04745da62b0.QQ20261002-093555.webp)
+![效果 4](https://blog.k1271.cn/static/img/09bb43ed28fe1e21a1dc82e986d09252.QQ_1790904752903.webp)
 
 ---
 
