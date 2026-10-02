@@ -26,10 +26,12 @@
 
 ## 效果展示
 
-![效果 1](https://blog.k1271.cn/static/img/6cfa44dbdd791ce6ffd06a9893dd5137.QQ20261002-093503.webp)
-![效果 2](https://blog.k1271.cn/static/img/64e48d2c41dae5ad867edb9d9c57471e.QQ20261002-093537.webp)
-![效果 3](https://blog.k1271.cn/static/img/cb80d40f0f135c45a701f04745da62b0.QQ20261002-093555.webp)
-![效果 4](https://blog.k1271.cn/static/img/09bb43ed28fe1e21a1dc82e986d09252.QQ_1790904752903.webp)
+<img width="855" height="567" alt="image" src="https://github.com/user-attachments/assets/b8cfaf26-c555-45f3-a5d8-0059ea1d68f5" />
+<img width="869" height="569" alt="image" src="https://github.com/user-attachments/assets/164562d0-91ef-4c55-9427-32564d0c3d00" />
+<img width="878" height="575" alt="image" src="https://github.com/user-attachments/assets/99493a70-3964-4bda-8e77-869b0bb58821" />
+<img width="841" height="565" alt="image" src="https://github.com/user-attachments/assets/b2fb9dd5-0a09-4f5f-99ef-d48eb2d11a57" />
+
+
 
 ---
 
